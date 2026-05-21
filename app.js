@@ -24,6 +24,8 @@ const state = {
   histories: [],
 
   repairLogs: [],
+  breakdownRepairLogs: [],
+  pmTpmRepairLogs: [],
   aiPmSuggestions: [],
 
   currentPlan: null,
@@ -144,6 +146,7 @@ tabShell: document.getElementById("tabShell"),
     modalBackdrop: document.getElementById("modalBackdrop"),
     closeModalBtn: document.getElementById("closeModalBtn"),
     cancelExecuteBtn: document.getElementById("cancelExecuteBtn"),
+    printCurrentChecklistBtn: document.getElementById("printCurrentChecklistBtn"),
     pmExecuteForm: document.getElementById("pmExecuteForm"),
 
     modalTitle: document.getElementById("modalTitle"),
@@ -230,6 +233,11 @@ if (els.mobileMenuBtn) {
   els.closeModalBtn.addEventListener("click", closePmModal);
   els.cancelExecuteBtn.addEventListener("click", closePmModal);
   els.modalBackdrop.addEventListener("click", closePmModal);
+
+  if (els.printCurrentChecklistBtn) {
+    els.printCurrentChecklistBtn.addEventListener("click", printCurrentChecklist);
+  }
+
   els.pmExecuteForm.addEventListener("submit", submitPmExecution);
 }
 
@@ -587,6 +595,16 @@ function normalizeManualChecklist(line, areaPoint) {
 
   const lower = line.toLowerCase();
 
+  if (isWaterClampText(`${line} ${areaPoint || ""}`)) {
+    return makeTechChecklist({
+      title: line,
+      method: `เปิดระบบน้ำวนและตรวจน้ำเข้า-ออกของบาร์น้ำแคลมป์บริเวณ ${areaPoint || "จุดที่กำหนด"} พร้อมดูรอยรั่วและการอุดตัน`,
+      ok: "น้ำไหลต่อเนื่อง ไม่มีรั่ว ไม่มีตะกรันอุดตัน และแคลมป์ไม่ร้อนเกิน",
+      ng: "น้ำไม่ไหล ไหลอ่อน รั่ว อุดตัน หรือแคลมป์ร้อนผิดปกติ",
+      action: "ตรวจวาล์ว ปั๊ม ท่อน้ำ Filter/Y-Strainer และบันทึกจุดที่พบพร้อมแนบรูป"
+    });
+  }
+
   if (includesAny(lower, ["ลม", "clamp", "กระบอก", "fitting", "speed", "solenoid"])) {
     return makeTechChecklist({
       title: line,
@@ -892,10 +910,17 @@ function renderChecklistPlans() {
         <span class="badge Completed">ทุก ${formatNumber(plan.interval_months || 1)} เดือน</span>
       </div>
 
-      <button class="btn primary" onclick="openPmExecution('${plan.id}')">
-        <i data-lucide="clipboard-check"></i>
-        เปิด Checklist
-      </button>
+      <div class="pm-card-actions">
+        <button class="btn primary" onclick="openPmExecution('${plan.id}')">
+          <i data-lucide="clipboard-check"></i>
+          เปิด Checklist
+        </button>
+
+        <button class="btn ghost" onclick="printPmChecklist('${plan.id}')">
+          <i data-lucide="printer"></i>
+          ปริ้น
+        </button>
+      </div>
     </div>
   `).join("");
 
@@ -1456,6 +1481,84 @@ window.deletePmPlan = async function(planId) {
   }
 };
 
+
+/* =========================================================
+   REPAIR LOG FILTER FOR AI PM
+   - Breakdown logs: ใช้สร้าง AI PM / คำนวณความเสี่ยง
+   - TPM/PM logs: แยกออก ไม่ถือเป็นเครื่องเสีย
+========================================================= */
+
+function splitRepairLogsForAi(rows = []) {
+  const breakdownLogs = [];
+  const pmTpmLogs = [];
+
+  rows.forEach(row => {
+    if (isPmOrTpmWork(row)) {
+      pmTpmLogs.push(row);
+    } else {
+      breakdownLogs.push(row);
+    }
+  });
+
+  return { breakdownLogs, pmTpmLogs };
+}
+
+function isPmOrTpmWork(row = {}) {
+  const typeText = [
+    row.problem_name,
+    row.problem,
+    row.machine_trouble,
+    row.breakdown_type,
+    row.classification,
+    row.repair_type,
+    row.work_type,
+    row.job_type,
+    row.pm_type,
+    row.maintenance_type,
+    row.failure_category,
+    row.category
+  ]
+    .map(value => normalizeTextForWorkType(value))
+    .filter(Boolean)
+    .join(" ");
+
+  if (!typeText) return false;
+
+  const pmPatterns = [
+    /(^|[^a-z])tpm([^a-z]|$)/i,
+    /(^|[^a-z])pm([^a-z]|$)/i,
+    /tpm\s*\/\s*pm/i,
+    /pm\s*\/\s*tpm/i,
+    /preventive/i,
+    /planned\s*maintenance/i,
+    /maintenance\s*plan/i,
+    /งาน\s*tpm/i,
+    /งาน\s*pm/i,
+    /งาน\s*tpm\s*\/\s*pm/i,
+    /งานบำรุงรักษา/i,
+    /บำรุงรักษาเชิงป้องกัน/i,
+    /บำรุงรักษาตามแผน/i,
+    /งานตามแผน/i,
+    /ตรวจเช็คตามแผน/i,
+    /ตรวจเช็กตามแผน/i,
+    /ตรวจสอบตามแผน/i,
+    /งานตรวจเช็ค/i,
+    /งานตรวจเช็ก/i,
+    /หล่อลื่นตามแผน/i,
+    /อัดจารบีตามแผน/i,
+    /shutdown\s*pm/i
+  ];
+
+  return pmPatterns.some(pattern => pattern.test(typeText));
+}
+
+function normalizeTextForWorkType(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /* =========================================================
    AUTO AI PM
 ========================================================= */
@@ -1481,8 +1584,11 @@ async function autoRunAiPmGenerator() {
     if (error) throw error;
 
     state.repairLogs = data || [];
+    const separatedLogs = splitRepairLogsForAi(state.repairLogs);
+    state.breakdownRepairLogs = separatedLogs.breakdownLogs;
+    state.pmTpmRepairLogs = separatedLogs.pmTpmLogs;
 
-    if (!state.repairLogs.length) {
+    if (!state.repairLogs.length || !state.breakdownRepairLogs.length) {
       state.aiPmSuggestions = [];
       renderAiPmSuggestions();
       renderDashboard();
@@ -1490,7 +1596,7 @@ async function autoRunAiPmGenerator() {
       return;
     }
 
-    let suggestions = generateAiPmSuggestions(state.repairLogs);
+    let suggestions = generateAiPmSuggestions(state.breakdownRepairLogs);
 
     suggestions = suggestions
       .map(item => enhanceAiSuggestionWithExistingPm(item))
@@ -1588,6 +1694,9 @@ async function analyzeAiPmGenerator() {
     if (error) throw error;
 
     state.repairLogs = data || [];
+    const separatedLogs = splitRepairLogsForAi(state.repairLogs);
+    state.breakdownRepairLogs = separatedLogs.breakdownLogs;
+    state.pmTpmRepairLogs = separatedLogs.pmTpmLogs;
 
     if (!state.repairLogs.length) {
       state.aiPmSuggestions = [];
@@ -1597,7 +1706,16 @@ async function analyzeAiPmGenerator() {
       return;
     }
 
-    state.aiPmSuggestions = generateAiPmSuggestions(state.repairLogs)
+    if (!state.breakdownRepairLogs.length) {
+      state.aiPmSuggestions = [];
+      renderAiPmSuggestions();
+      renderDashboard();
+      toast("ช่วงวันที่เลือกมีเฉพาะงาน TPM/PM จึงไม่สร้าง AI PM จาก Breakdown", "warning");
+      setStatus("พร้อมใช้งาน", "success");
+      return;
+    }
+
+    state.aiPmSuggestions = generateAiPmSuggestions(state.breakdownRepairLogs)
       .map(item => enhanceAiSuggestionWithExistingPm(item))
       .filter(item => !item.has_active_pm);
 
@@ -1881,6 +1999,50 @@ function determineFirstPlannedDate(score) {
   return toDateInput(date);
 }
 
+
+function isWaterClampText(text) {
+  const t = String(text || "").toLowerCase();
+
+  const directWaterClampWords = [
+    "บาร์น้ำ",
+    "บาร์นํ้า",
+    "น้ำแคลมป์",
+    "นํ้าแคลมป์",
+    "แคลมป์น้ำ",
+    "แคลมป์นํ้า",
+    "น้ำวน",
+    "นํ้าวน",
+    "ระบบน้ำวน",
+    "ระบบนํ้าวน",
+    "water bar",
+    "water clamp",
+    "cooling bar",
+    "cooling clamp"
+  ];
+
+  if (includesAny(t, directWaterClampWords)) return true;
+
+  const hasWaterWord = includesAny(t, [
+    "น้ำ",
+    "นํ้า",
+    "water",
+    "cooling",
+    "หล่อเย็น",
+    "น้ำหล่อเย็น",
+    "นํ้าหล่อเย็น",
+    "chiller"
+  ]);
+
+  const hasClampWord = includesAny(t, [
+    "แคลมป์",
+    "clamp",
+    "บาร์",
+    "bar"
+  ]);
+
+  return hasWaterWord && hasClampWord;
+}
+
 function classifyPmCategory(row) {
   const text = [
     row.machine_name,
@@ -1893,10 +2055,14 @@ function classifyPmCategory(row) {
     row.breakdown_type
   ].join(" ").toLowerCase();
 
+  if (isWaterClampText(text)) {
+    return "Cooling / Water Clamp";
+  }
+
   const rules = [
     {
       name: "Air / Pneumatic / Clamp",
-      keywords: ["ลม", "รั่ว", "แคลมป์", "clamp", "air", "กระบอกลม", "speed control", "solenoid"]
+      keywords: ["ลม", "ลมรั่ว", "แคลมป์ลม", "pneumatic", "air", "กระบอกลม", "speed control", "solenoid"]
     },
     {
       name: "Heater / Temperature",
@@ -1908,7 +2074,7 @@ function classifyPmCategory(row) {
     },
     {
       name: "Cooling / Water / Chiller",
-      keywords: ["น้ำ", "chiller", "หล่อเย็น", "สายยาง", "วาย", "strainer", "water", "รั่ว"]
+      keywords: ["น้ำ", "นํ้า", "น้ำวน", "บาร์น้ำ", "น้ำแคลมป์", "แคลมป์น้ำ", "water clamp", "water bar", "cooling clamp", "chiller", "หล่อเย็น", "สายยาง", "วาย", "strainer", "water", "น้ำรั่ว"]
     },
     {
       name: "Mechanical / Moving Parts",
@@ -1940,6 +2106,7 @@ function classifyPmCategory(row) {
 }
 
 function buildPmTitle(category, areaPoint, problemName) {
+  if (category.includes("Water Clamp")) return `ตรวจสอบระบบน้ำวนแคลมป์ / บาร์น้ำ จุด ${areaPoint}`;
   if (category.includes("Air")) return `ตรวจสอบระบบลมและชุด Clamp จุด ${areaPoint}`;
   if (category.includes("Heater")) return `ตรวจสอบระบบ Heater และวงจรควบคุมอุณหภูมิ จุด ${areaPoint}`;
   if (category.includes("Sensor")) return `ตรวจสอบ Sensor, Electrical และ Control จุด ${areaPoint}`;
@@ -2010,12 +2177,59 @@ function buildPmChecklist({ category, areaPoint, problemName, causeName, actionN
   const hasTemp = includesAny(fullText, ["อุณหภูมิ", "temp", "temperature", "heater", "ฮีต", "ฮีท"]);
   const hasDirty = includesAny(fullText, ["สกปรก", "ตัน", "ตะกรัน", "ฝุ่น", "คราบ", "อุดตัน"]);
   const hasAlarm = includesAny(fullText, ["alarm", "อลาม", "แจ้งเตือน"]);
+  const isWaterClamp = isWaterClampText(fullText);
   const hasTemporary = rows.some(row => clean(row.repair_result) === "ใช้งานได้ชั่วคราว");
   const hasFollowUp = rows.some(row => isFollowUp(row.repair_result));
 
   let checklist = [];
 
-  if (category.includes("Air") || fullText.includes("clamp") || fullText.includes("กระบอกลม")) {
+  if (isWaterClamp) {
+    checklist = [
+      makeTechChecklist({
+        title: `ตรวจการไหลเวียนน้ำในบาร์น้ำแคลมป์ จุด ${areaPoint}`,
+        method: `เปิดระบบน้ำวน แล้วตรวจดูน้ำเข้า-ออกของบาร์น้ำแคลมป์ ฟังเสียงปั๊ม และดูแรงดัน/การไหลถ้ามี Gauge หรือ Flow Indicator`,
+        ok: `น้ำไหลต่อเนื่องทั้งเข้าและออก บาร์น้ำไม่ร้อนผิดปกติ ไม่มี Alarm และอุณหภูมิแคลมป์ไม่สูงจนกระทบงาน`,
+        ng: `น้ำไม่ไหล ไหลอ่อน บาร์น้ำร้อนผิดปกติ แคลมป์ร้อน งานเสียรูป หรือเกิด Alarm อุณหภูมิ`,
+        action: `ตรวจวาล์วน้ำ ปั๊มน้ำ ท่อน้ำเข้า-ออก และจุดอุดตัน ถ่ายรูป/บันทึกจุดที่พบและแจ้ง Follow-up ถ้ายังแก้ไม่จบ`
+      }),
+
+      makeTechChecklist({
+        title: `ตรวจรอยรั่วของท่อน้ำและข้อต่อบริเวณแคลมป์`,
+        method: `ตรวจ Hose, Fitting, Clamp รัดสาย และจุดต่อเข้าบาร์น้ำ โดยดูรอยเปียก คราบน้ำ หรือหยดน้ำขณะระบบทำงาน`,
+        ok: `ไม่มีน้ำรั่ว ไม่มีคราบน้ำ สายไม่แตก ข้อต่อแน่น และไม่มีน้ำหยดลงพื้นที่เครื่อง`,
+        ng: `มีน้ำรั่ว สายแตก ข้อต่อหลวม มีคราบน้ำ หรือพบจุดซึมบริเวณบาร์น้ำแคลมป์`,
+        action: `ขันข้อต่อ เปลี่ยนสาย/ข้อต่อ/Clamp รัดสาย และบันทึกตำแหน่งรั่วให้ชัดเจน`
+      }),
+
+      makeTechChecklist({
+        title: `ตรวจการอุดตัน ตะกรัน และความสะอาดของระบบน้ำวนแคลมป์`,
+        method: `ตรวจ Filter/Y-Strainer/ทางน้ำเข้า-ออก และดูว่ามีคราบตะกรันหรือเศษอุดตันในระบบน้ำหรือไม่`,
+        ok: `Filter/Y-Strainer สะอาด น้ำไหลดี ไม่มีตะกรันสะสมมาก`,
+        ng: `พบตะกรัน เศษอุดตัน น้ำไหลอ่อน หรือทางน้ำตัน`,
+        action: `ล้าง Filter/Y-Strainer และทางน้ำ ถ่ายรูปก่อน-หลัง และพิจารณาเพิ่มรอบ PM หากพบอุดตันซ้ำ`
+      }),
+
+      makeTechChecklist({
+        title: `ตรวจผลกระทบจากอุณหภูมิแคลมป์หลังระบบน้ำทำงาน`,
+        method: `หลังเปิดระบบน้ำวน ให้เดินเครื่องหรือทดสอบ Cycle แล้วสังเกตว่าแคลมป์ยังร้อนเกิน งานเสียรูป หรือชิ้นงานมีรอยผิดปกติหรือไม่`,
+        ok: `แคลมป์ไม่ร้อนเกิน งานไม่เสียรูป Cycle ทำงานปกติ`,
+        ng: `แคลมป์ยังร้อน งานเสียรูป มีรอยผิดปกติ หรือระบบน้ำไม่สามารถลดความร้อนได้`,
+        action: `บันทึกอาการ ตรวจอัตราการไหล/อุณหภูมิน้ำ และแจ้งหัวหน้าเพื่อแก้ถาวร`
+      })
+    ];
+
+    if (hasLeak) {
+      checklist.unshift(makeTechChecklist({
+        title: `ตรวจน้ำรั่วซ้ำในระบบบาร์น้ำแคลมป์จากประวัติซ่อม`,
+        method: `ตรวจตำแหน่งที่เคยรั่วตามประวัติซ่อม โดยดูรอยเปียก คราบน้ำ และจุดข้อต่อเดิมเป็นพิเศษ`,
+        ok: `ไม่พบรอยรั่วซ้ำ ระบบน้ำไหลปกติ และข้อต่อแน่น`,
+        ng: `พบรั่วซ้ำบริเวณเดิมหรือใกล้เคียง`,
+        action: `เปลี่ยนอะไหล่ที่เกี่ยวข้อง บันทึกว่าเป็นปัญหาซ้ำ และเสนอแก้ไขถาวร`
+      }));
+    }
+  }
+
+  else if ((category.includes("Air") || fullText.includes("clamp") || fullText.includes("กระบอกลม")) && !isWaterClamp) {
     checklist = [
       makeTechChecklist({
         title: `ตรวจจุดรั่วของระบบลมบริเวณ ${areaPoint}`,
@@ -3093,6 +3307,552 @@ function toast(message, type = "success") {
 function refreshIcons() {
   if (window.lucide) lucide.createIcons();
 }
+window.printPmChecklist = async function(planId) {
+  try {
+    const plan = state.plans.find(p => p.id === planId);
+
+    if (!plan) {
+      toast("ไม่พบแผน PM ที่ต้องการปริ้น", "error");
+      return;
+    }
+
+    setStatus("กำลังเตรียมใบ Checklist สำหรับปริ้น...", "warning");
+
+    const { data, error } = await state.sb
+      .from("pm_checklist_items")
+      .select("*")
+      .eq("pm_plan_id", plan.id)
+      .order("sort_order", { ascending: true });
+
+    if (error) throw error;
+
+    const checklist = data || [];
+
+    if (!checklist.length) {
+      toast("แผนนี้ยังไม่มี Checklist", "warning");
+      setStatus("พร้อมใช้งาน", "success");
+      return;
+    }
+
+    openPrintWindow(plan, checklist);
+    setStatus("พร้อมใช้งาน", "success");
+  } catch (err) {
+    console.error("Print PM Checklist Error:", err);
+    setStatus("เตรียมปริ้นไม่สำเร็จ", "error");
+    toast(`เตรียมปริ้นไม่สำเร็จ: ${getErrorMessage(err)}`, "error");
+  }
+};
+
+function printCurrentChecklist() {
+  if (!state.currentPlan) {
+    toast("ไม่พบ PM Checklist ที่เปิดอยู่", "warning");
+    return;
+  }
+
+  if (!state.currentChecklist.length) {
+    toast("ไม่มี Checklist สำหรับปริ้น", "warning");
+    return;
+  }
+
+  openPrintWindow(state.currentPlan, state.currentChecklist);
+}
+
+function openPrintWindow(plan, checklist) {
+  const printWindow = window.open("", "_blank", "width=1000,height=800");
+
+  if (!printWindow) {
+    toast("Browser บล็อกหน้าต่างปริ้น กรุณาอนุญาต Popup", "warning");
+    return;
+  }
+
+  const objective = extractPmObjective(plan.pm_detail) || buildFallbackObjective(plan);
+  const html = buildPrintableChecklistHtml(plan, checklist, objective);
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+
+  printWindow.onload = () => {
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 300);
+  };
+}
+
+function buildPrintableChecklistHtml(plan, checklist, objective) {
+  const checklistRows = checklist.map((item, index) => {
+    const parsed = parseTechChecklist(item.check_title);
+
+    return `
+      <tr>
+        <td class="center">${index + 1}</td>
+        <td>
+          <div class="check-title">${escapeHtml(parsed.title)}</div>
+          <div class="check-block"><strong>วิธีตรวจ:</strong> ${escapeHtml(parsed.method)}</div>
+          <div class="check-block ok-text"><strong>OK:</strong> ${escapeHtml(parsed.ok)}</div>
+          <div class="check-block ng-text"><strong>NG:</strong> ${escapeHtml(parsed.ng)}</div>
+          <div class="check-block action-text"><strong>ถ้า NG:</strong> ${escapeHtml(parsed.action)}</div>
+        </td>
+        <td class="check-cell">□</td>
+        <td class="check-cell">□</td>
+        <td class="check-cell">□</td>
+        <td class="remark-cell"></td>
+      </tr>
+    `;
+  }).join("");
+
+  return `
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>PM Checklist - ${escapeHtml(plan.pm_no || "")}</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Tahoma, sans-serif;
+      color: #111827;
+      background: #ffffff;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .no-print {
+      margin-bottom: 12px;
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .no-print button {
+      border: none;
+      border-radius: 8px;
+      background: #2563eb;
+      color: white;
+      padding: 8px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: start;
+      border-bottom: 2px solid #111827;
+      padding-bottom: 10px;
+      margin-bottom: 10px;
+    }
+    .company { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .doc-title { font-size: 15px; font-weight: 700; color: #1d4ed8; }
+    .doc-no {
+      border: 1px solid #111827;
+      padding: 8px 10px;
+      min-width: 170px;
+      text-align: center;
+      font-weight: 700;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border: 1px solid #111827;
+      margin-bottom: 10px;
+    }
+    .info-item {
+      min-height: 38px;
+      border-right: 1px solid #111827;
+      border-bottom: 1px solid #111827;
+      padding: 6px;
+    }
+    .info-item:nth-child(4n) { border-right: none; }
+    .label { font-size: 9px; color: #4b5563; margin-bottom: 2px; }
+    .value { font-size: 11px; font-weight: 700; }
+    .objective {
+      border: 1px solid #111827;
+      padding: 8px;
+      margin-bottom: 10px;
+      background: #f8fafc;
+    }
+    .objective strong { display: block; margin-bottom: 4px; color: #1d4ed8; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th {
+      border: 1px solid #111827;
+      background: #e5e7eb;
+      padding: 6px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 10px;
+    }
+    td { border: 1px solid #111827; padding: 6px; vertical-align: top; }
+    .col-no { width: 32px; }
+    .col-check { width: auto; }
+    .col-status { width: 40px; }
+    .col-remark { width: 130px; }
+    .center { text-align: center; vertical-align: middle; font-weight: 700; }
+    .check-title { font-size: 11px; font-weight: 700; margin-bottom: 4px; }
+    .check-block { margin-top: 2px; font-size: 10px; color: #374151; }
+    .check-block strong { color: #111827; }
+    .ok-text strong { color: #047857; }
+    .ng-text strong { color: #b91c1c; }
+    .action-text strong { color: #b45309; }
+    .check-cell { text-align: center; vertical-align: middle; font-size: 18px; font-weight: 700; }
+    .remark-cell { height: 58px; }
+    .footer { margin-top: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .sign-box { border: 1px solid #111827; min-height: 72px; padding: 8px; display: flex; flex-direction: column; justify-content: flex-end; }
+    .sign-line { border-top: 1px solid #111827; padding-top: 5px; text-align: center; font-weight: 700; }
+    .note { margin-top: 8px; font-size: 9px; color: #4b5563; }
+    @media print {
+      .no-print { display: none; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tr { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <button onclick="window.print()">Print</button>
+    <button onclick="window.close()">Close</button>
+  </div>
+
+  <div class="print-page">
+    <div class="header">
+      <div>
+        <div class="company">MPR Smart Maintenance</div>
+        <div class="doc-title">Preventive Maintenance Checklist / ใบตรวจเช็ก PM</div>
+      </div>
+      <div class="doc-no">${escapeHtml(plan.pm_no || "-")}</div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-item"><div class="label">Machine Name</div><div class="value">${escapeHtml(plan.machine_name || "-")}</div></div>
+      <div class="info-item"><div class="label">Machine No.</div><div class="value">${escapeHtml(plan.machine_no || "-")}</div></div>
+      <div class="info-item"><div class="label">Production Line</div><div class="value">${escapeHtml(plan.production_line || "-")}</div></div>
+      <div class="info-item"><div class="label">Area / Point</div><div class="value">${escapeHtml(plan.area_point_name || "-")}</div></div>
+      <div class="info-item"><div class="label">PM Title</div><div class="value">${escapeHtml(plan.pm_title || "-")}</div></div>
+      <div class="info-item"><div class="label">Priority</div><div class="value">${escapeHtml(plan.priority || "-")}</div></div>
+      <div class="info-item"><div class="label">Planned Date</div><div class="value">${formatDate(plan.planned_date)}</div></div>
+      <div class="info-item"><div class="label">Frequency / Interval</div><div class="value">${escapeHtml(plan.frequency || "-")} / ${formatNumber(plan.interval_months || 1)} เดือน</div></div>
+    </div>
+
+    <div class="objective">
+      <strong>เป้าหมายของ PM นี้</strong>
+      ${escapeHtml(objective || "-")}
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th class="col-no">No.</th>
+          <th class="col-check">รายการตรวจ / วิธีตรวจ / เกณฑ์ตัดสิน</th>
+          <th class="col-status">OK</th>
+          <th class="col-status">NG</th>
+          <th class="col-status">Follow</th>
+          <th class="col-remark">หมายเหตุ</th>
+        </tr>
+      </thead>
+      <tbody>${checklistRows}</tbody>
+    </table>
+
+    <div class="footer">
+      <div class="sign-box"><div class="sign-line">ผู้ตรวจ / Technician</div></div>
+      <div class="sign-box"><div class="sign-line">หัวหน้าตรวจสอบ / Supervisor</div></div>
+      <div class="sign-box"><div class="sign-line">วันที่ / Date</div></div>
+    </div>
+
+    <div class="note">
+      หมายเหตุ: ถ้าพบ NG ให้ระบุจุดที่พบ อาการผิดปกติ และแจ้งหัวหน้าเพื่อทำ Follow-up หรือวางแผนเปลี่ยนอะไหล่
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+/* =========================================================
+   UTILITY
+========================================================= */
+
+function switchTab(tabId) {
+  let activeLabel = "Dashboard";
+
+  els.tabs.forEach(btn => {
+    const isActive = btn.dataset.tab === tabId;
+    btn.classList.toggle("active", isActive);
+
+    if (isActive) {
+      activeLabel = btn.dataset.label || btn.innerText.trim();
+    }
+  });
+
+  els.panels.forEach(panel => {
+    panel.classList.toggle("active", panel.id === tabId);
+  });
+
+  if (els.mobileMenuText) {
+    els.mobileMenuText.textContent = activeLabel;
+  }
+
+  if (els.tabShell) {
+    els.tabShell.classList.remove("open");
+  }
+
+  refreshIcons();
+}
+function updateOverdueViewOnly() {
+  state.plans = state.plans.map(plan => {
+    if (
+      plan.status !== "Completed" &&
+      plan.status !== "Cancelled" &&
+      isPastDate(plan.planned_date)
+    ) {
+      return { ...plan, _effectiveStatus: "Overdue" };
+    }
+
+    return { ...plan, _effectiveStatus: plan.status };
+  });
+}
+
+function getEffectiveStatus(plan) {
+  return plan._effectiveStatus || plan.status || "Pending";
+}
+
+function isPastDate(value) {
+  if (!value) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const date = new Date(`${value}T00:00:00`);
+
+  return date < today;
+}
+
+function priorityScore(priority) {
+  const map = {
+    Low: 1,
+    Medium: 2,
+    High: 3,
+    Critical: 4
+  };
+
+  return map[priority] || 0;
+}
+
+function deriveHistoryStatus(result, followUp) {
+  if (followUp || result === "Need Follow-up" || result === "Need Spare Part") {
+    return "Need Follow-up";
+  }
+
+  if (result === "Temporary Fixed") {
+    return "Temporary Completed";
+  }
+
+  return "Completed";
+}
+
+function calculateTimeDiffMin(start, end) {
+  if (!start || !end) return 0;
+
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+
+  let startMin = sh * 60 + sm;
+  let endMin = eh * 60 + em;
+
+  if (endMin < startMin) endMin += 24 * 60;
+
+  return Math.max(0, endMin - startMin);
+}
+
+function calculateNextDueDate(dateValue, frequency, intervalMonths = 1) {
+  if (!dateValue) return null;
+
+  const date = new Date(`${dateValue}T00:00:00`);
+
+  switch (frequency) {
+    case "Daily":
+      date.setDate(date.getDate() + 1);
+      break;
+
+    case "Weekly":
+      date.setDate(date.getDate() + 7);
+      break;
+
+    case "Monthly":
+      date.setMonth(date.getMonth() + Number(intervalMonths || 1));
+      break;
+
+    case "Quarterly":
+      date.setMonth(date.getMonth() + Number(intervalMonths || 3));
+      break;
+
+    case "Yearly":
+      date.setFullYear(date.getFullYear() + 1);
+      break;
+
+    default:
+      if (intervalMonths) date.setMonth(date.getMonth() + Number(intervalMonths));
+      else return null;
+  }
+
+  return toDateInput(date);
+}
+
+function addMonthsToDate(dateValue, months) {
+  if (!dateValue) return null;
+
+  const date = new Date(`${dateValue}T00:00:00`);
+  date.setMonth(date.getMonth() + Number(months || 1));
+
+  return toDateInput(date);
+}
+
+function statusBadge(status) {
+  const cls = String(status || "Pending").replace(/\s+/g, "");
+
+  return `<span class="badge ${cls}">${escapeHtml(status || "Pending")}</span>`;
+}
+
+function priorityBadge(priority) {
+  return `<span class="badge ${escapeHtml(priority || "Medium")}">${escapeHtml(priority || "Medium")}</span>`;
+}
+
+function resultBadge(result) {
+  const danger = ["Abnormal Found", "Need Spare Part", "Need Follow-up", "Temporary Fixed"].includes(result);
+  const cls = danger ? "NG" : "Completed";
+
+  return `<span class="badge ${cls}">${escapeHtml(result || "-")}</span>`;
+}
+
+function toDateInput(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+
+  return `${y}-${m}-${d}`;
+}
+
+function parseDate(value) {
+  if (!value) return null;
+
+  return new Date(`${value}T00:00:00`);
+}
+
+function daysBetween(startDate, endDate) {
+  if (!startDate || !endDate) return 0;
+
+  const ms = endDate - startDate;
+
+  return Math.max(0, Math.round(ms / (1000 * 60 * 60 * 24)));
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+
+  const date = new Date(`${value}T00:00:00`);
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+function formatNumber(value, digits = 0) {
+  return Number(value || 0).toLocaleString("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
+  });
+}
+
+function sanitizeFileName(name) {
+  return String(name || "image")
+    .replace(/[^\w.\-ก-๙]/g, "_")
+    .replace(/_+/g, "_");
+}
+
+function clean(value) {
+  return String(value ?? "").trim();
+}
+
+function num(value) {
+  const n = Number(value || 0);
+
+  return Number.isFinite(n) ? n : 0;
+}
+
+function sumBy(rows, fn) {
+  return rows.reduce((sum, row) => sum + fn(row), 0);
+}
+
+function topCount(rows, keyFn) {
+  const grouped = rows.reduce((acc, row) => {
+    const key = keyFn(row);
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  const top = Object.entries(grouped).sort((a, b) => b[1] - a[1])[0];
+
+  return {
+    name: top ? top[0] : "-",
+    count: top ? top[1] : 0
+  };
+}
+
+function isFollowUp(value) {
+  return ["ใช้งานได้ชั่วคราว", "ต้องติดตามต่อ", "รอซ่อมเพิ่มเติม"].includes(clean(value));
+}
+
+function makeTempId() {
+  return `AI-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function includesAny(text, keywords) {
+  return keywords.some(keyword => String(text).includes(String(keyword).toLowerCase()));
+}
+
+function uniqueChecklist(items) {
+  return [...new Set(items.map(item => item.trim()).filter(Boolean))];
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function getErrorMessage(err) {
+  return err?.message || err?.hint || err?.details || JSON.stringify(err) || "Unknown error";
+}
+
+function setStatus(text, type) {
+  els.systemStatus.textContent = text;
+
+  if (type === "success") els.statusDot.style.background = "#10b981";
+  else if (type === "error") els.statusDot.style.background = "#ef4444";
+  else els.statusDot.style.background = "#f59e0b";
+}
+
+function toast(message, type = "success") {
+  els.toast.className = `toast ${type}`;
+  els.toast.textContent = message;
+
+  setTimeout(() => {
+    els.toast.className = "toast hidden";
+  }, 4200);
+}
+
+function refreshIcons() {
+  if (window.lucide) lucide.createIcons();
+}
+
 async function handleTechnicianCodeInput() {
   const code = clean(els.technicianCode.value);
 
