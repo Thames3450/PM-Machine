@@ -1710,3 +1710,35 @@ tr:hover td {
     white-space: normal;
   }
 }
+
+/* =========================================================
+   Print Checklist Button
+========================================================= */
+
+.pm-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 0.8fr;
+  gap: 10px;
+}
+
+.modal-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .pm-card-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-head-actions {
+    gap: 8px;
+  }
+
+  .modal-head-actions .btn {
+    width: auto;
+    min-height: 42px;
+    padding: 0 12px;
+  }
+}
