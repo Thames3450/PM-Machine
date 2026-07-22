@@ -1,910 +1,348 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <title>MPR Smart Maintenance | PM Planner Pro V2</title>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap"
-    rel="stylesheet"
-  />
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-
-  <link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="mobile-web-app-capable" content="yes">
+<title>PM Planner · MPR Smart Maintenance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
-  <div class="app-shell">
-    <!-- ================= Top Navigation ================= -->
-    <nav class="top-nav">
-      <div class="brand">
-        <div class="brand-icon">
-          <i data-lucide="calendar-check-2"></i>
-        </div>
-        <div>
-          <div class="brand-title">MPR Smart Maintenance</div>
-          <div class="brand-subtitle">PM Planner</div>
-        </div>
-      </div>
 
-      <div class="nav-actions">
-        <button class="nav-link" id="refreshBtn" type="button">
-          <i data-lucide="refresh-cw"></i>
-          Refresh
-        </button>
+<!-- แถบเตือนกรณียังไม่ได้ใส่ anon key -->
+<div id="configBanner" class="config-banner hidden">
+  ⚠ ยังไม่ได้ตั้งค่า Supabase — เปิดไฟล์ <code>app.js</code> แล้ววาง anon key ตัวเดียวกับแอป MPR ที่บรรทัดบนสุด
+</div>
 
-        <div class="system-status">
-          <span class="status-dot" id="statusDot"></span>
-          <span id="systemStatus">กำลังเตรียมระบบ...</span>
-        </div>
+<div class="shell">
+
+  <!-- ===== Sidebar ===== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">PM</div>
+      <div class="brand-text">
+        <span class="brand-title">PM Planner</span>
+        <span class="brand-sub">MPR Smart Maintenance</span>
       </div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <button class="nav-btn active" data-view="dashboard">
+        <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="9" rx="1.3"/><rect x="13.5" y="3" width="7.5" height="5.5" rx="1.3"/><rect x="13.5" y="12" width="7.5" height="9" rx="1.3"/><rect x="3" y="15.5" width="7.5" height="5.5" rx="1.3"/></svg></span><span class="nav-label">แดชบอร์ด</span></button>
+      <button class="nav-btn" data-view="board">
+        <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 4v17M14 4v17"/><path d="M8 2v4M16 2v4" stroke-width="1.6"/></svg></span><span class="nav-label">แผนประจำปี</span></button>
+      <button class="nav-btn" data-view="due">
+        <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg></span><span class="nav-label">งานครบกำหนด</span>
+        <span class="nav-badge hidden" id="navDueBadge">0</span></button>
+      <button class="nav-btn" data-view="plans">
+        <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/><path d="M17.5 3.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 8.5-8.5z"/></svg></span><span class="nav-label">แผน PM</span></button>
+      <button class="nav-btn" data-view="machines">
+        <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></span><span class="nav-label">เครื่องจักร</span></button>
+      <button class="nav-btn" data-view="history">
+        <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/></svg></span><span class="nav-label">ประวัติ</span></button>
     </nav>
 
-    <!-- ================= Hero ================= -->
-    <header class="hero">
-      <div class="hero-content">
-        <p class="eyebrow">
-          <i data-lucide="shield-check"></i>
-          Preventive Maintenance System
-        </p>
-        <h2>วางแผน PM และ ตรวจสอบเครื่องจักร</h2>
-        <p>
-          ระบบนี้ช่วยสร้างแผน PM จากข้อมูลจริง แสดง Checklist 
-          และใช้ AI วิเคราะห์ประวัติซ่อมเพื่อแนะนำ PM ที่ควรทำก่อนเครื่องเสียซ้ำ
-        </p>
+    <div class="sidebar-foot">
+      <div class="user-chip">
+        <span class="user-dot"></span>
+        <span class="user-info"><span id="userName">—</span><span class="user-code" id="userCode"></span></span>
+        <button class="user-logout" id="logoutBtn" title="ออกจากระบบ">⏻</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main class="main">
+    <header class="topbar">
+      <h1 class="view-title" id="viewTitle">แดชบอร์ด</h1>
+      <div class="topbar-tools">
+        <select id="deptFilter" class="select" title="กรองตามแผนก">
+          <option value="all">ทุกแผนก</option>
+        </select>
+        <select id="yearSelect" class="select" title="เลือกปี"></select>
+        <button id="refreshBtn" class="btn ghost" title="โหลดข้อมูลใหม่">⟳</button>
       </div>
     </header>
 
-    <!-- ================= Tabs ================= -->
-<section class="tab-shell" id="tabShell">
-  <button class="mobile-menu-btn" id="mobileMenuBtn" type="button">
-    <span class="mobile-menu-left">
-      <i data-lucide="menu"></i>
-      <span id="mobileMenuText">Dashboard</span>
-    </span>
-    <i data-lucide="chevron-down" class="mobile-menu-chevron"></i>
-  </button>
-
-  <div class="tab-list" id="tabList">
-    <button class="tab-btn active" data-tab="dashboardTab" data-label="Dashboard">
-      <i data-lucide="layout-dashboard"></i>
-      <span>Dashboard</span>
-    </button>
-
-    <button class="tab-btn" data-tab="planTab" data-label="PM Plan">
-      <i data-lucide="calendar-plus"></i>
-      <span>PM Plan</span>
-    </button>
-
-    <button class="tab-btn" data-tab="checklistTab" data-label="PM Checklist">
-      <i data-lucide="clipboard-check"></i>
-      <span>PM Checklist</span>
-    </button>
-
-    <button class="tab-btn" data-tab="calendarTab" data-label="PM Calendar">
-      <i data-lucide="calendar-days"></i>
-      <span>PM Calendar</span>
-    </button>
-
-    <button class="tab-btn" data-tab="historyTab" data-label="PM History">
-      <i data-lucide="history"></i>
-      <span>PM History</span>
-    </button>
-
-    <button class="tab-btn" data-tab="aiPmTab" data-label="AI PM">
-      <i data-lucide="sparkles"></i>
-      <span>AI PM</span>
-    </button>
-  </div>
-</section>
-    <main class="main-layout">
-      <!-- =====================================================
-           1) Dashboard
-      ====================================================== -->
-      <section id="dashboardTab" class="tab-panel active">
-        <section class="kpi-grid">
-          <article class="kpi-card">
-            <div class="kpi-icon blue">
-              <i data-lucide="calendar-days"></i>
+    <!-- ===== Dashboard ===== -->
+    <section class="view active" id="view-dashboard">
+      <div class="hero-band">
+        <div class="hero-main">
+          <div class="hero-eyebrow">ภาพรวมการบำรุงรักษาเชิงป้องกัน</div>
+          <div class="hero-metric">
+            <div class="hero-ring">
+              <svg viewBox="0 0 120 120">
+                <circle class="ring-bg" cx="60" cy="60" r="52"/>
+                <circle class="ring-fg" id="heroRing" cx="60" cy="60" r="52"/>
+              </svg>
+              <div class="hero-ring-label"><span id="kpiCompliance">—</span><i>%</i></div>
             </div>
-            <div>
-              <div class="kpi-label">PM ทั้งหมด</div>
-              <div class="kpi-value" id="kpiTotal">0</div>
-              <div class="kpi-sub">แผนทั้งหมดในระบบ</div>
-            </div>
-          </article>
-
-          <article class="kpi-card">
-            <div class="kpi-icon amber">
-              <i data-lucide="clock-3"></i>
-            </div>
-            <div>
-              <div class="kpi-label">ยังไม่ทำ</div>
-              <div class="kpi-value" id="kpiPending">0</div>
-              <div class="kpi-sub">Pending / In Progress</div>
-            </div>
-          </article>
-
-          <article class="kpi-card">
-            <div class="kpi-icon green">
-              <i data-lucide="check-circle-2"></i>
-            </div>
-            <div>
-              <div class="kpi-label">ทำเสร็จแล้ว</div>
-              <div class="kpi-value" id="kpiCompleted">0</div>
-              <div class="kpi-sub">Completed</div>
-            </div>
-          </article>
-
-          <article class="kpi-card">
-            <div class="kpi-icon red">
-              <i data-lucide="alert-triangle"></i>
-            </div>
-            <div>
-              <div class="kpi-label">เลยกำหนด</div>
-              <div class="kpi-value" id="kpiOverdue">0</div>
-              <div class="kpi-sub">Overdue</div>
-            </div>
-          </article>
-
-          <article class="kpi-card">
-            <div class="kpi-icon purple">
-              <i data-lucide="percent"></i>
-            </div>
-            <div>
-              <div class="kpi-label">Completion Rate</div>
-              <div class="kpi-value" id="kpiCompletionRate">0%</div>
-              <div class="kpi-sub">อัตราทำสำเร็จ</div>
-            </div>
-          </article>
-
-          <article class="kpi-card">
-            <div class="kpi-icon red">
-              <i data-lucide="ban"></i>
-            </div>
-            <div>
-              <div class="kpi-label">NG Found</div>
-              <div class="kpi-value" id="kpiNgFound">0</div>
-              <div class="kpi-sub">พบความผิดปกติ</div>
-            </div>
-          </article>
-
-          <article class="kpi-card">
-            <div class="kpi-icon amber">
-              <i data-lucide="flag"></i>
-            </div>
-            <div>
-              <div class="kpi-label">Follow-up</div>
-              <div class="kpi-value" id="kpiFollowUp">0</div>
-              <div class="kpi-sub">ต้องติดตามต่อ</div>
-            </div>
-          </article>
-
-          <article class="kpi-card">
-            <div class="kpi-icon blue">
-              <i data-lucide="sparkles"></i>
-            </div>
-            <div>
-              <div class="kpi-label">AI Suggested</div>
-              <div class="kpi-value" id="kpiAiSuggested">0</div>
-              <div class="kpi-sub">PM ที่ระบบแนะนำ</div>
-            </div>
-          </article>
-        </section>
-
-        <section class="dashboard-grid">
-          <div class="panel">
-            <div class="panel-head">
-              <div class="head-icon">
-                <i data-lucide="list-checks"></i>
-              </div>
-              <div>
-                <h2>PM ที่ควรทำเร่งด่วน</h2>
-                <p>เรียงตาม Overdue, Critical และวันที่ใกล้ถึงกำหนด</p>
-              </div>
-            </div>
-
-            <div id="urgentPmList" class="card-list">
-              <div class="empty">กำลังโหลดข้อมูล...</div>
+            <div class="hero-copy">
+              <div class="hero-title">อัตราทำตามแผน</div>
+              <div class="hero-hint" id="kpiComplianceHint">—</div>
             </div>
           </div>
-
-          <div class="panel">
-            <div class="panel-head">
-              <div class="head-icon">
-                <i data-lucide="activity"></i>
-              </div>
-              <div>
-                <h2>สรุปตามเครื่องจักร</h2>
-                <p>ดูจำนวน PM และสถานะของแต่ละเครื่อง</p>
-              </div>
-            </div>
-
-            <div id="machineSummaryList" class="card-list">
-              <div class="empty">กำลังโหลดข้อมูล...</div>
-            </div>
-          </div>
-        </section>
-      </section>
-
-      <!-- =====================================================
-           2) PM Plan
-      ====================================================== -->
-      <section id="planTab" class="tab-panel">
-        <section class="panel">
-          <div class="panel-head">
-            <div class="head-icon">
-              <i data-lucide="calendar-plus"></i>
-            </div>
-            <div>
-              <h2>สร้างแผน PM ใหม่</h2>
-              <p>สร้างแผน PM แบบ Manual หรือปรับจาก AI เพื่อใช้งานจริง</p>
-            </div>
-          </div>
-
-          <form id="pmPlanForm" class="form-grid">
-            <div class="field">
-              <label>ชื่อเครื่องจักร <span>*</span></label>
-              <select id="machineName" required>
-                <option value="">-- เลือกเครื่องจักร --</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label>หมายเลขเครื่อง <span>*</span></label>
-              <select id="machineNo" required>
-                <option value="">-- เลือกหมายเลข --</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label>ไลน์ผลิต</label>
-              <input type="text" id="productionLine" readonly placeholder="Auto" />
-            </div>
-
-            <div class="field">
-              <label>จุด PM / จุดตรวจ <span>*</span></label>
-              <select id="areaPoint" required>
-                <option value="">-- เลือกจุด PM --</option>
-              </select>
-            </div>
-
-            <div class="field full">
-              <label>หัวข้อ PM <span>*</span></label>
-              <input
-                type="text"
-                id="pmTitle"
-                required
-                placeholder="เช่น ตรวจสอบชุด Clamp และระบบลม"
-              />
-            </div>
-
-            <div class="field full">
-              <label>เป้าหมายของ PM นี้</label>
-              <textarea
-                id="pmObjective"
-                rows="2"
-                placeholder="เช่น ป้องกัน Clamp ค้าง / ลดปัญหาลมรั่ว / ป้องกัน Heater แตกซ้ำ"
-              ></textarea>
-            </div>
-
-            <div class="field full">
-              <label>รายละเอียด PM</label>
-              <textarea
-                id="pmDetail"
-                rows="3"
-                placeholder="รายละเอียดเพิ่มเติมของแผน PM"
-              ></textarea>
-            </div>
-
-            <div class="field">
-              <label>ประเภท PM</label>
-              <select id="pmType">
-                <option value="Inspection">Inspection - ตรวจเช็ก</option>
-                <option value="Cleaning">Cleaning - ทำความสะอาด</option>
-                <option value="Lubrication">Lubrication - หล่อลื่น</option>
-                <option value="Adjustment">Adjustment - ปรับตั้ง</option>
-                <option value="Replacement">Replacement - เปลี่ยนอะไหล่</option>
-                <option value="Condition Check">Condition Check - ตรวจสภาพ</option>
-                <option value="Safety Check">Safety Check - ตรวจความปลอดภัย</option>
-                <option value="Shutdown PM">Shutdown PM - PM ช่วงหยุดเครื่อง</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label>ความถี่หลัก</label>
-              <select id="frequency">
-                <option value="Daily">Daily</option>
-                <option value="Weekly">Weekly</option>
-                <option value="Monthly" selected>Monthly</option>
-                <option value="Quarterly">Quarterly</option>
-                <option value="Yearly">Yearly</option>
-                <option value="Shutdown">Shutdown</option>
-                <option value="AI Suggested">AI Suggested</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label>รอบ PM</label>
-              <select id="intervalMonths">
-                <option value="1">ทุก 1 เดือน</option>
-                <option value="2">ทุก 2 เดือน</option>
-                <option value="3" selected>ทุก 3 เดือน</option>
-                <option value="6">ทุก 6 เดือน</option>
-                <option value="12">ทุก 12 เดือน</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label>ความสำคัญ</label>
-              <select id="priority">
-                <option value="Low">Low - ต่ำ</option>
-                <option value="Medium" selected>Medium - ปานกลาง</option>
-                <option value="High">High - สูง</option>
-                <option value="Critical">Critical - เร่งด่วน</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label>วันที่วางแผน <span>*</span></label>
-              <input type="date" id="plannedDate" required />
-            </div>
-
-            <div class="field">
-              <label>Next Due Date</label>
-              <input type="date" id="nextDueDateManual" readonly />
-            </div>
-
-            <div class="field">
-              <label>ผู้รับผิดชอบ</label>
-              <input type="text" id="assignedToName" placeholder="เช่น Maintenance Team / ชื่อช่าง" />
-            </div>
-
-            <div class="field">
-              <label>เวลาประมาณการ (นาที)</label>
-              <input type="number" id="estimatedTime" min="0" placeholder="45" />
-            </div>
-
-            <div class="field">
-              <label>แหล่งที่มา</label>
-              <select id="sourceType">
-                <option value="Manual">Manual - สร้างเอง</option>
-                <option value="AI Suggested">AI Suggested - ระบบแนะนำ</option>
-                <option value="Breakdown History">Breakdown History - จากประวัติเสีย</option>
-                <option value="Repeat Problem">Repeat Problem - ปัญหาซ้ำ</option>
-                <option value="TPM Shutdown">TPM Shutdown - แผนหยุดเครื่อง</option>
-                <option value="Follow-up">Follow-up - งานติดตาม</option>
-              </select>
-            </div>
-
-            <div class="field full">
-              <label>Checklist PM <span>*</span></label>
-              <textarea
-                id="checklistText"
-                rows="8"
-                required
-                placeholder="กรอก 1 บรรทัดต่อ 1 รายการตรวจ เช่น&#10;ตรวจจุดรั่วของระบบลมบริเวณชุด Clamp&#10;ตรวจ Sensor ตำแหน่ง Clamp/Cylinder&#10;ตรวจการเคลื่อนที่ของชุด Trimming"
-              ></textarea>
-
-              <div class="form-note">
-                ถ้ากรอกสั้น ๆ ระบบจะแสดงเป็น Checklist แบบช่างอ่านง่ายให้อัตโนมัติในหน้าทำ PM
-              </div>
-            </div>
-
-            <div class="form-actions full">
-              <button type="button" class="btn ghost" id="resetPlanBtn">
-                <i data-lucide="rotate-ccw"></i>
-                ล้างฟอร์ม
-              </button>
-
-              <button type="submit" class="btn primary">
-                <i data-lucide="save"></i>
-                บันทึกแผน PM
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head split">
-            <div class="head-title">
-              <div class="head-icon">
-                <i data-lucide="table"></i>
-              </div>
-              <div>
-                <h2>รายการแผน PM</h2>
-                <p>ค้นหา ทำ PM หรือลบแผนที่ไม่ต้องการ</p>
-              </div>
-            </div>
-
-            <div class="search-box">
-              <i data-lucide="search"></i>
-              <input
-                type="text"
-                id="planSearch"
-                placeholder="ค้นหาเครื่อง / จุด PM / หัวข้อ..."
-              />
-            </div>
-          </div>
-
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>PM No.</th>
-                  <th>เครื่องจักร</th>
-                  <th>จุด PM</th>
-                  <th>หัวข้อ</th>
-                  <th>วันที่</th>
-                  <th>รอบ</th>
-                  <th>ความสำคัญ</th>
-                  <th>สถานะ</th>
-                  <th>Checklist</th>
-                  <th>จัดการ</th>
-                </tr>
-              </thead>
-              <tbody id="planTableBody">
-                <tr>
-                  <td colspan="10" class="empty">กำลังโหลดข้อมูล...</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </section>
-
-      <!-- =====================================================
-           3) PM Checklist
-      ====================================================== -->
-      <section id="checklistTab" class="tab-panel">
-        <section class="panel">
-          <div class="panel-head split">
-            <div class="head-title">
-              <div class="head-icon">
-                <i data-lucide="clipboard-check"></i>
-              </div>
-              <div>
-                <h2>PM Checklist สำหรับช่าง</h2>
-                <p>เลือกแผน PM แล้วเปิดรายการตรวจแบบอ่านง่าย ใช้ได้บนมือถือ</p>
-              </div>
-            </div>
-
-            <div class="search-box">
-              <i data-lucide="search"></i>
-              <input
-                type="text"
-                id="checklistSearch"
-                placeholder="ค้นหา PM ที่ต้องทำ..."
-              />
-            </div>
-          </div>
-
-          <div class="technician-guide">
-            <div>
-              <h3>วิธีใช้หน้านี้</h3>
-              <p>
-                กด “เปิด Checklist” แล้วตรวจทีละข้อ เลือก OK / NG / Need Follow-up
-                ถ้าพบผิดปกติให้เขียนหมายเหตุและแนบรูป
-              </p>
-            </div>
-          </div>
-
-          <div id="checklistPlanList" class="pm-plan-grid">
-            <div class="empty">กำลังโหลดข้อมูล...</div>
-          </div>
-        </section>
-      </section>
-
-      <!-- =====================================================
-           4) PM Calendar
-      ====================================================== -->
-      <section id="calendarTab" class="tab-panel">
-        <section class="panel">
-          <div class="panel-head split">
-            <div class="head-title">
-              <div class="head-icon">
-                <i data-lucide="calendar-days"></i>
-              </div>
-              <div>
-                <h2>PM Calendar</h2>
-                <p>ดูแผน PM ตามเดือน แยกสีตามสถานะ</p>
-              </div>
-            </div>
-
-            <div class="calendar-controls">
-              <button class="btn ghost small-btn" id="prevMonthBtn" type="button">
-                <i data-lucide="chevron-left"></i>
-              </button>
-
-              <div class="calendar-title" id="calendarTitle">-</div>
-
-              <button class="btn ghost small-btn" id="nextMonthBtn" type="button">
-                <i data-lucide="chevron-right"></i>
-              </button>
-            </div>
-          </div>
-
-          <div class="calendar-legend">
-            <span><b class="dot planned"></b> Planned</span>
-            <span><b class="dot overdue"></b> Overdue</span>
-            <span><b class="dot completed"></b> Completed</span>
-            <span><b class="dot critical"></b> Critical</span>
-          </div>
-
-          <div id="pmCalendar" class="pm-calendar">
-            <div class="empty">กำลังโหลดปฏิทิน...</div>
-          </div>
-        </section>
-      </section>
-
-      <!-- =====================================================
-           5) PM History
-      ====================================================== -->
-      <section id="historyTab" class="tab-panel">
-        <section class="panel">
-          <div class="panel-head split">
-            <div class="head-title">
-              <div class="head-icon">
-                <i data-lucide="history"></i>
-              </div>
-              <div>
-                <h2>ประวัติการทำ PM</h2>
-                <p>ตรวจสอบย้อนหลังว่าใครทำ พบอะไร และมี Follow-up หรือไม่</p>
-              </div>
-            </div>
-
-            <div class="search-box">
-              <i data-lucide="search"></i>
-              <input
-                type="text"
-                id="historySearch"
-                placeholder="ค้นหาประวัติ PM..."
-              />
-            </div>
-          </div>
-
-          <div class="history-filter-grid">
-            <div class="field">
-              <label>ตั้งแต่วันที่</label>
-              <input type="date" id="historyFromDate" />
-            </div>
-
-            <div class="field">
-              <label>ถึงวันที่</label>
-              <input type="date" id="historyToDate" />
-            </div>
-
-            <div class="field">
-              <label>ผล PM</label>
-              <select id="historyResultFilter">
-                <option value="">ทั้งหมด</option>
-                <option value="Completed">Completed</option>
-                <option value="Normal">Normal</option>
-                <option value="Abnormal Found">Abnormal Found</option>
-                <option value="Temporary Fixed">Temporary Fixed</option>
-                <option value="Need Spare Part">Need Spare Part</option>
-                <option value="Need Follow-up">Need Follow-up</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>วันที่</th>
-                  <th>PM No.</th>
-                  <th>เครื่องจักร</th>
-                  <th>จุด PM</th>
-                  <th>หัวข้อ</th>
-                  <th>ช่าง</th>
-                  <th>ผล</th>
-                  <th>Follow-up</th>
-                </tr>
-              </thead>
-              <tbody id="historyTableBody">
-                <tr>
-                  <td colspan="8" class="empty">กำลังโหลดข้อมูล...</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </section>
-
-      <!-- =====================================================
-           6) AI PM Suggestion
-      ====================================================== -->
-      <section id="aiPmTab" class="tab-panel">
-        <section class="panel">
-          <div class="panel-head split">
-            <div class="head-title">
-              <div class="head-icon">
-                <i data-lucide="sparkles"></i>
-              </div>
-              <div>
-                <h2>AI PM Suggestion</h2>
-                <p>
-                  ระบบวิเคราะห์ประวัติซ่อม, Downtime, MTTR, MTBF, ปัญหาซ้ำ
-                  และหมายเหตุช่าง เพื่อแนะนำ PM ที่ควรทำ
-                </p>
-              </div>
-            </div>
-
-            <button type="button" class="btn primary" id="analyzeAiPmBtn">
-              <i data-lucide="brain-circuit"></i>
-              วิเคราะห์ใหม่
-            </button>
-          </div>
-
-          <div class="ai-filter-grid">
-            <div class="field">
-              <label>วิเคราะห์ตั้งแต่วันที่</label>
-              <input type="date" id="aiFromDate" />
-            </div>
-
-            <div class="field">
-              <label>ถึงวันที่</label>
-              <input type="date" id="aiToDate" />
-            </div>
-
-            <div class="field">
-              <label>Target MTTR (นาที)</label>
-              <input type="number" id="targetMttr" value="37" min="1" />
-            </div>
-
-            <div class="field">
-              <label>Target MTBF (ชั่วโมง)</label>
-              <input type="number" id="targetMtbf" value="100" min="1" />
-            </div>
-
-            <div class="field">
-              <label>Planned Time / Day</label>
-              <input type="number" id="plannedHoursPerDay" value="24" min="1" max="24" />
-            </div>
-
-            <div class="field">
-              <label>Min PM Score</label>
-              <input type="number" id="minPmScore" value="40" min="0" max="100" />
-            </div>
-          </div>
-        </section>
-
-        <section class="ai-kpi-grid">
-          <article class="kpi-card">
-            <div class="kpi-icon red">
-              <i data-lucide="alert-triangle"></i>
-            </div>
-            <div>
-              <div class="kpi-label">Critical PM</div>
-              <div class="kpi-value" id="aiCriticalCount">0</div>
-              <div class="kpi-sub">ควรทำภายใน 7 วัน</div>
-            </div>
-          </article>
-
-          <article class="kpi-card">
-            <div class="kpi-icon amber">
-              <i data-lucide="shield-alert"></i>
-            </div>
-            <div>
-              <div class="kpi-label">High PM</div>
-              <div class="kpi-value" id="aiHighCount">0</div>
-              <div class="kpi-sub">ควรทำภายใน 14 วัน</div>
-            </div>
-          </article>
-
-          <article class="kpi-card">
-            <div class="kpi-icon blue">
-              <i data-lucide="calendar-clock"></i>
-            </div>
-            <div>
-              <div class="kpi-label">Suggested PM</div>
-              <div class="kpi-value" id="aiSuggestedCount">0</div>
-              <div class="kpi-sub">รายการที่ระบบแนะนำ</div>
-            </div>
-          </article>
-
-          <article class="kpi-card">
-            <div class="kpi-icon purple">
-              <i data-lucide="repeat"></i>
-            </div>
-            <div>
-              <div class="kpi-label">Avg Interval</div>
-              <div class="kpi-value" id="aiAvgInterval">-</div>
-              <div class="kpi-sub">รอบ PM เฉลี่ย</div>
-            </div>
-          </article>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head split">
-            <div class="head-title">
-              <div class="head-icon">
-                <i data-lucide="list-checks"></i>
-              </div>
-              <div>
-                <h2>PM ที่ระบบแนะนำ</h2>
-                <p>ตรวจสอบก่อนกด Convert เป็นแผน PM จริง</p>
-              </div>
-            </div>
-
-            <button type="button" class="btn ghost" id="convertAllAiPmBtn">
-              <i data-lucide="calendar-plus"></i>
-              Convert All
-            </button>
-          </div>
-
-          <div id="aiPmSuggestionList" class="ai-pm-grid">
-            <div class="empty">กำลังวิเคราะห์ข้อมูล...</div>
-          </div>
-        </section>
-      </section>
-    </main>
-  </div>
-
-  <!-- =====================================================
-       PM Execute Modal
-  ====================================================== -->
-  <div id="pmModal" class="modal hidden">
-    <div class="modal-backdrop" id="modalBackdrop"></div>
-
-    <div class="modal-card">
-      <div class="modal-head">
-        <div>
-          <h2 id="modalTitle">ทำ PM</h2>
-          <p id="modalSubtitle">Checklist</p>
         </div>
+        <div class="hero-side" id="heroSideStats"></div>
+      </div>
 
-        <div class="modal-head-actions">
-          <button type="button" class="btn ghost small-btn" id="printCurrentChecklistBtn">
-            <i data-lucide="printer"></i>
-            ปริ้น
-          </button>
-
-          <button type="button" class="icon-btn" id="closeModalBtn">
-            <i data-lucide="x"></i>
-          </button>
+      <div class="kpi-grid">
+        <div class="kpi kpi-danger">
+          <div class="kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+          <div class="kpi-body">
+            <div class="kpi-label">เกินกำหนด</div>
+            <div class="kpi-value" id="kpiOverdue">—</div>
+            <div class="kpi-hint">งานค้างที่เลยวันครบกำหนด</div>
+          </div>
+        </div>
+        <div class="kpi kpi-warn">
+          <div class="kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+          <div class="kpi-body">
+            <div class="kpi-label">ครบกำหนดใน 7 วัน</div>
+            <div class="kpi-value" id="kpiWeek">—</div>
+            <div class="kpi-hint">เตรียมคน / อะไหล่ล่วงหน้า</div>
+          </div>
+        </div>
+        <div class="kpi kpi-ok">
+          <div class="kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="m9 11 3 3L22 4"/></svg></div>
+          <div class="kpi-body">
+            <div class="kpi-label">เสร็จเดือนนี้</div>
+            <div class="kpi-value" id="kpiMonthDone">—</div>
+            <div class="kpi-hint">งาน PM ที่ปิดในเดือนปัจจุบัน</div>
+          </div>
         </div>
       </div>
 
-      <form id="pmExecuteForm" class="modal-body">
-        <div class="pm-objective-box" id="executeObjectiveBox">
-          <h3>เป้าหมายของ PM นี้</h3>
-          <p id="executeObjectiveText">-</p>
+      <div class="dash-cols">
+        <div class="panel">
+          <div class="panel-head"><h2>อัตราทำตามแผนรายแผนก</h2></div>
+          <div class="dept-bars" id="deptBars"></div>
         </div>
-
-        <div class="form-grid compact">
-          <div class="field">
-            <label>วันที่ทำ PM <span>*</span></label>
-            <input type="date" id="actualDate" required />
-          </div>
-
-          <div class="field">
-            <label>รหัสช่าง</label>
-            <input type="text" id="technicianCode" placeholder="Employee Code" />
-          </div>
-
-          <div class="field">
-            <label>ชื่อช่าง <span>*</span></label>
-            <input type="text" id="technicianName" required readonly placeholder="ดึงชื่อจากรหัสช่างอัตโนมัติ" />
-          </div>
-
-          <div class="field">
-            <label>เวลาเริ่ม</label>
-            <input type="time" id="startTime" />
-          </div>
-
-          <div class="field">
-            <label>เวลาจบ</label>
-            <input type="time" id="endTime" />
-          </div>
-
-          <div class="field">
-            <label>ผลหลัง PM <span>*</span></label>
-            <select id="pmResult" required>
-              <option value="Completed">Completed - เสร็จสมบูรณ์</option>
-              <option value="Normal">Normal - ปกติ</option>
-              <option value="Abnormal Found">Abnormal Found - พบผิดปกติ</option>
-              <option value="Temporary Fixed">Temporary Fixed - แก้ชั่วคราว</option>
-              <option value="Need Spare Part">Need Spare Part - รออะไหล่</option>
-              <option value="Need Follow-up">Need Follow-up - ต้องติดตามต่อ</option>
-            </select>
-          </div>
+        <div class="panel">
+          <div class="panel-head"><h2>เกินกำหนด</h2><button class="link-btn" data-jump="due">ดูทั้งหมด →</button></div>
+          <div class="mini-list" id="overdueList"></div>
         </div>
-
-        <div class="checklist-box">
-          <h3>รายการตรวจ PM</h3>
-          <div id="executeChecklistList" class="execute-checklist-list"></div>
+        <div class="panel">
+          <div class="panel-head"><h2>ใกล้ครบกำหนด (14 วัน)</h2><button class="link-btn" data-jump="due">ดูทั้งหมด →</button></div>
+          <div class="mini-list" id="dueSoonList"></div>
         </div>
+      </div>
+    </section>
 
-        <div class="form-grid">
-          <div class="field full">
-            <label>สิ่งที่พบ / Finding</label>
-            <textarea
-              id="finding"
-              rows="3"
-              placeholder="เช่น พบลมรั่วที่ข้อต่อ / พบ Sensor หลวม / ตรวจแล้วปกติ"
-            ></textarea>
-          </div>
-
-          <div class="field full">
-            <label>การแก้ไข / Action Taken</label>
-            <textarea
-              id="actionTaken"
-              rows="3"
-              placeholder="เช่น ขันแน่น / เปลี่ยนสายลม / ทำความสะอาด / หล่อลื่น"
-            ></textarea>
-          </div>
-
-          <div class="field full">
-            <label>รายละเอียดผิดปกติ</label>
-            <textarea
-              id="abnormalDetail"
-              rows="3"
-              placeholder="กรอกถ้าพบความผิดปกติ เช่น จุดที่เสีย อาการที่พบ อะไหล่ที่ต้องใช้"
-            ></textarea>
-          </div>
-
-          <div class="field">
-            <label>ต้องติดตามต่อ?</label>
-            <select id="followUpRequired">
-              <option value="false">ไม่ต้องติดตาม</option>
-              <option value="true">ต้องติดตามต่อ</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label>Next Due Date</label>
-            <input type="date" id="nextDueDate" />
-          </div>
-
-          <div class="field full">
-            <label>รายละเอียด Follow-up</label>
-            <textarea
-              id="followUpDetail"
-              rows="2"
-              placeholder="เช่น รออะไหล่ / ต้องตรวจซ้ำ / ต้องหยุดเครื่องแก้ถาวร"
-            ></textarea>
-          </div>
-
-          <div class="field">
-            <label>รูปก่อนทำ PM</label>
-            <input type="file" id="beforeImages" accept="image/jpeg,image/png,image/webp" multiple />
-          </div>
-
-          <div class="field">
-            <label>รูปหลังทำ PM</label>
-            <input type="file" id="afterImages" accept="image/jpeg,image/png,image/webp" multiple />
-          </div>
-
-          <div class="field">
-            <label>รูปจุดผิดปกติ</label>
-            <input type="file" id="abnormalImages" accept="image/jpeg,image/png,image/webp" multiple />
-          </div>
+    <!-- ===== Year board ===== -->
+    <section class="view" id="view-board">
+      <div class="view-toolbar">
+        <p class="toolbar-note">คลิกช่องเดือนเพื่อดู/บันทึกผลงานในเดือนนั้น</p>
+        <div class="toolbar-actions">
+          <button class="btn ghost" id="boardReportBtn">📄 ออกรายงาน</button>
+          <button class="btn primary" id="boardGenBtn">สร้างตารางจากแผน (ปีนี้)</button>
         </div>
+      </div>
+      <div class="board-legend">
+        <span class="lg"><i class="dot dot-done"></i>ทำแล้ว</span>
+        <span class="lg"><i class="dot dot-late"></i>เกินกำหนด</span>
+        <span class="lg"><i class="dot dot-plan"></i>ตามแผน</span>
+        <span class="lg"><i class="dot dot-skip"></i>ข้าม</span>
+      </div>
+      <div class="board-wrap" id="boardWrap"></div>
+    </section>
 
-        <div class="form-actions">
-          <button type="button" class="btn ghost" id="cancelExecuteBtn">
-            ยกเลิก
-          </button>
-
-          <button type="submit" class="btn primary" id="submitExecuteBtn">
-            <i data-lucide="check-circle-2"></i>
-            บันทึกผล PM
-          </button>
+    <!-- ===== Due list ===== -->
+    <section class="view" id="view-due">
+      <div class="view-toolbar">
+        <div class="seg" id="dueRangeSeg">
+          <button class="seg-btn active" data-range="overdue">เกินกำหนด</button>
+          <button class="seg-btn" data-range="week">7 วัน</button>
+          <button class="seg-btn" data-range="month">เดือนนี้</button>
+          <button class="seg-btn" data-range="all">ทั้งปี</button>
         </div>
-      </form>
+      </div>
+      <div class="due-list" id="dueList"></div>
+    </section>
+
+    <!-- ===== Plans ===== -->
+    <section class="view" id="view-plans">
+      <div class="view-toolbar">
+        <p class="toolbar-note">กำหนดงาน PM ต่อเครื่อง แล้วกด "สร้างตารางจากแผน" เพื่อลงกำหนดการทั้งปี</p>
+        <div class="toolbar-actions">
+          <button class="btn ghost" id="genYearBtn">สร้างตารางจากแผน (ปีนี้)</button>
+          <button class="btn primary" id="planAddBtn">+ เพิ่มแผน PM</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr>
+            <th>เครื่องจักร</th><th>งาน PM</th><th>ความถี่</th><th>เริ่ม</th>
+            <th>เวลามาตรฐาน</th><th>ผู้รับผิดชอบ</th><th></th>
+          </tr></thead>
+          <tbody id="plansBody"></tbody>
+        </table>
+      </div>
+      <div class="card-list" id="plansCards"></div>
+    </section>
+
+    <!-- ===== Machines ===== -->
+    <section class="view" id="view-machines">
+      <div class="view-toolbar">
+        <p class="toolbar-note">ทะเบียนเครื่องจักรดึงจากระบบ MPR โดยตรง — เพิ่ม/แก้ไขเครื่องได้ที่ระบบ MPR</p>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr>
+            <th>รหัส</th><th>ชื่อเครื่อง</th><th>แผนก</th><th>ไลน์</th><th>แผน PM</th>
+          </tr></thead>
+          <tbody id="machinesBody"></tbody>
+        </table>
+      </div>
+      <div class="card-list" id="machinesCards"></div>
+    </section>
+
+    <!-- ===== History ===== -->
+    <section class="view" id="view-history">
+      <div class="view-toolbar">
+        <div class="seg" id="histResultSeg">
+          <button class="seg-btn active" data-result="all">ทั้งหมด</button>
+          <button class="seg-btn" data-result="ok">ปกติ</button>
+          <button class="seg-btn" data-result="fixed">แก้ไขแล้ว</button>
+          <button class="seg-btn" data-result="issue">พบปัญหา</button>
+        </div>
+      </div>
+      <div class="due-list" id="historyList"></div>
+    </section>
+  </main>
+</div>
+
+<!-- ===== Modal: ล็อกอินด้วยรหัสพนักงาน ===== -->
+<div class="modal-veil hidden" id="nameModal">
+  <div class="modal modal-sm">
+    <div class="login-brand">
+      <div class="login-mark">PM</div>
+      <div class="login-brand-text">
+        <span class="login-title">PM Planner</span>
+        <span class="login-sub">MPR Smart Maintenance</span>
+      </div>
+    </div>
+    <h3 class="modal-title">เข้าสู่ระบบ</h3>
+    <p class="modal-sub">กรอกรหัสพนักงานเพื่อเข้าใช้งาน (ใช้ร่วมกับระบบ MPR)</p>
+    <input type="text" inputmode="numeric" class="input" id="nameInput" placeholder="รหัสพนักงาน เช่น 650403" autocomplete="off">
+    <div class="login-error hidden" id="loginError"></div>
+    <div class="modal-actions">
+      <button class="btn primary" id="nameSaveBtn">เข้าสู่ระบบ</button>
     </div>
   </div>
+</div>
 
-  <div id="toast" class="toast hidden"></div>
+<!-- ===== Modal: แผน PM ===== -->
+<div class="modal-veil hidden" id="planModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title" id="planModalTitle">เพิ่มแผน PM</h3>
+      <button class="modal-x" data-close="planModal">✕</button>
+    </div>
+    <div class="field-grid">
+      <label class="field"><span>แผนก *</span><select class="input" id="planDept"></select></label>
+      <label class="field"><span>เครื่องจักร *</span><select class="input" id="planMachine"></select></label>
+      <label class="field span2"><span>ชื่องาน PM *</span><input class="input" id="planTitle" placeholder="เช่น เปลี่ยนถ่ายน้ำมันหล่อลื่น / ตรวจสายพาน"></label>
+      <label class="field"><span>ความถี่ *</span>
+        <select class="input" id="planFreq">
+          <option value="daily">รายวัน</option>
+          <option value="weekly">รายสัปดาห์</option>
+          <option value="monthly" selected>รายเดือน</option>
+          <option value="bimonthly">ราย 2 เดือน</option>
+          <option value="quarterly">ราย 3 เดือน</option>
+          <option value="semiannual">ราย 6 เดือน</option>
+          <option value="annual">รายปี</option>
+        </select></label>
+      <label class="field"><span>เริ่มรอบแรก *</span><input class="input" type="date" id="planStart"></label>
+      <label class="field"><span>เวลามาตรฐาน (นาที)</span><input class="input" type="number" min="0" id="planMinutes" placeholder="เช่น 30"></label>
+      <label class="field"><span>ผู้รับผิดชอบ</span><input class="input" id="planAssignee" placeholder="ชื่อช่าง / ทีม"></label>
+      <label class="field span2"><span>เช็คลิสต์ (บรรทัดละ 1 รายการ)</span>
+        <textarea class="input" id="planChecklist" rows="4" placeholder="ตรวจระดับน้ำมัน&#10;ขันแน่นจุดยึด&#10;ทำความสะอาดไส้กรอง"></textarea></label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" data-close="planModal">ยกเลิก</button>
+      <button class="btn primary" id="planSaveBtn">บันทึก</button>
+    </div>
+  </div>
+</div>
 
-  <script src="app.js"></script>
+<!-- ===== Modal: บันทึกผล PM ===== -->
+<div class="modal-veil hidden" id="doneModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">บันทึกผล PM</h3>
+      <button class="modal-x" data-close="doneModal">✕</button>
+    </div>
+    <div class="done-info" id="doneInfo"></div>
+    <div class="field-grid">
+      <label class="field"><span>วันที่ทำ *</span><input class="input" type="date" id="doneDate"></label>
+      <label class="field"><span>ผู้ทำ *</span><input class="input" id="doneBy"></label>
+      <label class="field span2"><span>ผลการตรวจ *</span>
+        <select class="input" id="doneResult">
+          <option value="ok">ปกติ — ใช้งานได้ตามปกติ</option>
+          <option value="fixed">แก้ไขแล้ว — พบจุดผิดปกติและแก้ไขหน้างาน</option>
+          <option value="issue">พบปัญหา — ต้องแจ้งซ่อม / รออะไหล่</option>
+        </select></label>
+      <div class="field span2" id="doneChecklistWrap">
+        <span>เช็คลิสต์</span>
+        <div class="ck-list" id="doneChecklist"></div>
+      </div>
+      <label class="field span2"><span>หมายเหตุ</span><textarea class="input" id="doneNote" rows="2" placeholder="สิ่งที่พบ / อะไหล่ที่ใช้"></textarea></label>
+    </div>
+    <div class="modal-actions space">
+      <button class="btn danger-ghost" id="skipBtn">ข้ามรอบนี้</button>
+      <div class="modal-actions">
+        <button class="btn ghost" data-close="doneModal">ยกเลิก</button>
+        <button class="btn primary" id="doneSaveBtn">บันทึกผล</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: รายการในเดือน ===== -->
+<div class="modal-veil hidden" id="monthModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title" id="monthModalTitle">งานในเดือน</h3>
+      <button class="modal-x" data-close="monthModal">✕</button>
+    </div>
+    <div class="mini-list" id="monthList"></div>
+  </div>
+</div>
+
+<!-- ===== Modal: ออกรายงานแผนประจำปี ===== -->
+<div class="modal-veil hidden" id="reportModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">ออกรายงานแผน PM ประจำปี</h3>
+      <button class="modal-x" data-close="reportModal">✕</button>
+    </div>
+    <p class="modal-sub">ตารางแผนบำรุงรักษาเชิงป้องกัน เครื่องจักร × 12 เดือน — ตามแผนกและปีที่เลือกอยู่</p>
+    <div class="field-grid">
+      <label class="field span2"><span>ชื่อบริษัท / โรงงาน (หัวรายงาน)</span>
+        <input class="input" id="repCompany" placeholder="เช่น บริษัท เอ็มพีอาร์ จำกัด"></label>
+      <label class="field"><span>ผู้จัดทำ</span><input class="input" id="repPreparedBy" placeholder="ชื่อผู้จัดทำ"></label>
+      <label class="field"><span>ผู้อนุมัติ</span><input class="input" id="repApprovedBy" placeholder="ชื่อผู้อนุมัติ"></label>
+      <label class="field span2"><span>เอกสารเลขที่ / อ้างอิง</span><input class="input" id="repDocNo" placeholder="เช่น PM-2026-001 (ไม่บังคับ)"></label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" data-close="reportModal">ยกเลิก</button>
+      <button class="btn ghost" id="repExcelBtn">⬇ ดาวน์โหลด Excel</button>
+      <button class="btn primary" id="repPrintBtn">🖨 พิมพ์ / บันทึก PDF</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
